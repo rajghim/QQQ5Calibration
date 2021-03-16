@@ -1,8 +1,8 @@
 /*************************************************************************
  * QQQ5EnCal.cpp script can be used to alpha calibrate energies for      *
- * different strips of 8 QQQ5 detectors.		                         *
+ * different strips of 4 QQQ5 detectors.		                         *
  *                                                                       *
- * Energy calibration (for 4 dets*32 rings ) is done by gaussian	     *
+ * Energy calibration (for 4 dets*4 Sectos*32 rings) is done by gaussian	     *
  * fit of each histograms. The channel numbers are then saved in         *
  * QQQ5EnCalChannels.dat file.                				             *
  * 									                                     *
@@ -50,12 +50,14 @@ void Analysis::Loop() {
 
 	//Define Histograms here
 	//Histograms without the gains applied
-	TH1F *QQQ5_EnCal[4][32]; // Energy Histogram for the Calibration of the Energy
+	TH1F *QQQ5_EnCal[4][4][32]; // Energy Histogram for the Calibration of the Energy (4Dets*4Sectors*32Rings)
 	for (Int_t i=0; i<4; i++){ // Loop over detectors
-		for (Int_t j=0; j<32; j++){ //Loop over the strips
-			std::string nameQQQ5_EnCal = Form("QQQ5_%i_Strip_%i_EnCal",i,j);
-			QQQ5_EnCal[i][j] = new TH1F(nameQQQ5_EnCal.c_str(), "QQQ5 detector Energy Spectrum", 1000,1000,4000);
-		}//End of Loop over Strips
+		for(Int_t j=0; j<4; j++){ //Loop over sectors
+			for (Int_t k=0; k<32; k++){ //Loop over the rings
+				std::string nameQQQ5_EnCal = Form("QQQ5_%i_Sector_%i_Ring_%i_EnCal",i,j,k);
+				QQQ5_EnCal[i][j][k] = new TH1F(nameQQQ5_EnCal.c_str(), "QQQ5 detector Energy Spectrum", 1000,1000,4000);
+			}//End Loop over Rings	
+		}//End of Loop over Sectors
 	}//End of Loop over Detectors
 
 	EnergyLoss* Source = new EnergyLoss("AlphaInAu.dat");// SRIM File for Source casing energy loss
@@ -81,7 +83,7 @@ void Analysis::Loop() {
 		
 
 			//Filling the histograms here
-			QQQ5_EnCal[QQQ5Det[j]][QQQ5Ring[j]]->Fill(RawEnergy);
+			QQQ5_EnCal[QQQ5Det[j]][QQQ5Sector[j]][QQQ5Ring[j]]->Fill(RawEnergy);
 			
 	
 		}// End of the multiplicity Loop	
@@ -103,36 +105,38 @@ void Analysis::Loop() {
 	
     outputFile->cd();
 
-    for (Int_t i=0; i<4; i++){
-   		for (Int_t j=0; j<32; j++){
+    for (Int_t i=0; i<4; i++){ //Loop over dets
+		for (Int_t j=0; j<4; j++){ //Loop over sectors
+   			for (Int_t k=0; k<32; k++){ //Loop over ringss
 
-			Int_t nfound = s->Search(QQQ5_EnCal[i][j],2.5,"",0.3);
-			Double_t *xpeaks = s->GetPositionX();
-			for (Int_t p=0; p<nfound; p++){
-				xp[p] = xpeaks[p];
-			}
-			std::sort(xp, xp+5);
-			Float_t xmin = std::min(std::min(std::min(std::min(xp[0],xp[1]),xp[2]),xp[3]),xp[4]);
-			Float_t xmax = std::max(std::max(std::max(std::max(xp[0],xp[1]),xp[2]),xp[3]),xp[4]);
-			fit_gaus->SetParLimits (1,xp[0]-5,xp[0]+5);
-			fit_gaus->SetParLimits(4,xp[1]-5,xp[1]+5);
-			fit_gaus->SetParLimits(6,xp[2]-5,xp[2]+5);
-			fit_gaus->SetParLimits(8,xp[3]-5,xp[3]+5);
-			fit_gaus->SetParLimits(10,xp[4]-5,xp[4]+5);
-			fit_gaus->SetParLimits(2,1,50);	
+				Int_t nfound = s->Search(QQQ5_EnCal[i][j][k],2.5,"",0.3);
+				Double_t *xpeaks = s->GetPositionX();
+				for (Int_t p=0; p<nfound; p++){
+					xp[p] = xpeaks[p];
+				}
+				std::sort(xp, xp+5);
+				Float_t xmin = std::min(std::min(std::min(std::min(xp[0],xp[1]),xp[2]),xp[3]),xp[4]);
+				Float_t xmax = std::max(std::max(std::max(std::max(xp[0],xp[1]),xp[2]),xp[3]),xp[4]);
+				fit_gaus->SetParLimits (1,xp[0]-5,xp[0]+5);
+				fit_gaus->SetParLimits(4,xp[1]-5,xp[1]+5);
+				fit_gaus->SetParLimits(6,xp[2]-5,xp[2]+5);
+				fit_gaus->SetParLimits(8,xp[3]-5,xp[3]+5);
+				fit_gaus->SetParLimits(10,xp[4]-5,xp[4]+5);
+				fit_gaus->SetParLimits(2,1,50);	
 			
-			QQQ5_EnCal[i][j]->Fit("fit_gaus","Q","",xmin-50,xmax+50);
-			//std::cout << fit_gaus->GetParameter (1) << std::endl;
-			std::ofstream pfile;
-			pfile.open("/mnt/e/Analysis/QQQ5Calibration/DatFile/QQQ5EnCalChannels.dat", std::ofstream::app);
-			pfile << i << '\t' << j << '\t' << fit_gaus->GetParameter (1) << '\t' << fit_gaus->GetParameter (4) << '\t' << fit_gaus->GetParameter (6) << '\t' << fit_gaus->GetParameter (8) << '\t' << fit_gaus->GetParameter (10) << std::endl;
-			pfile.close();
-			QQQ5_EnCal[i][j]->Write();   
+				QQQ5_EnCal[i][j][k]->Fit("fit_gaus","Q","",xmin-50,xmax+50);
+				//std::cout << fit_gaus->GetParameter (1) << std::endl;
+				std::ofstream pfile;
+				pfile.open("/mnt/e/Analysis/QQQ5Calibration/DatFile/QQQ5EnCalChannels.dat", std::ofstream::app);
+				pfile << i << '\t' << j << '\t' << k << '\t' << fit_gaus->GetParameter (1) << '\t' << fit_gaus->GetParameter (4) << '\t' << fit_gaus->GetParameter (6) << '\t' << fit_gaus->GetParameter (8) << '\t' << fit_gaus->GetParameter (10) << std::endl;
+				pfile.close();
+				QQQ5_EnCal[i][j][k]->Write();   
+			}	
 		}
     }
     outputFile->Close();
 
-
+	
 	//Now check the "EnCal.root" file. Is the histogram fitted correctly?
 	//If yes, the energy loss for 5 alpha peaks are calculated and "QQQ5EnCalChannels.dat" file is opened. Then Slopes and Intercepts are calculated
 
@@ -152,29 +156,32 @@ void Analysis::Loop() {
 	//Open the QQQ5EnCalChannels.dat file
 	std::ifstream file;
 	file.open("DatFile/QQQ5EnCalChannels.dat");
-	Double_t Det[128] = {0};
-	Double_t Ring[128] = {0};
-	Double_t FirstChannel[128] = {0};
-	Double_t SecondChannel[128] = {0};
-	Double_t ThirdChannel[128] = {0};
-	Double_t FourthChannel[128] = {0};
-	Double_t FifthChannel[128] = {0};
-	for (Int_t i=0; i<128; i++){
-		file >> Det[i] >> Ring[i] >> FirstChannel[i] >> SecondChannel[i] >> ThirdChannel[i] >> FourthChannel[i] >> FifthChannel[i];
-		std::cout << Det[i] << '\t' << Ring[i] << '\t' << FirstChannel[i] << '\t' << SecondChannel[i] << '\t' << ThirdChannel[i] << '\t' << FourthChannel[i] << '\t' << FifthChannel[i] << std::endl;
+	Int_t Det[512] = {0};
+	Int_t Sector[512] ={0};
+	Int_t Ring[512] = {0};
+	Double_t FirstChannel[512] = {0};
+	Double_t SecondChannel[512] = {0};
+	Double_t ThirdChannel[512] = {0};
+	Double_t FourthChannel[512] = {0};
+	Double_t FifthChannel[512] = {0};
+	for (Int_t i=0; i<512; i++){
+		file >> Det[i] >> Sector[i] >> Ring[i] >> FirstChannel[i] >> SecondChannel[i] >> ThirdChannel[i] >> FourthChannel[i] >> FifthChannel[i];
+		//std::cout << Det[i] << '\t' << Sector[i] << '\t' << Ring[i] << '\t' << FirstChannel[i] << '\t' << SecondChannel[i] << '\t' << ThirdChannel[i] << '\t' << FourthChannel[i] << '\t' << FifthChannel[i] << std::endl;
 	}
 	file.close();
-
+	
 	//Cleaning the dat file to save the gains
     std::ofstream cfile;
     cfile.open("/mnt/e/Analysis/QQQ5Calibration/Output/QQQ5EnCal.dat", std::ofstream::out | std::ofstream::trunc);
     cfile.close();
 
 	//Finding the source casing thickness and deadlayer thickness
-	for (Int_t i=0; i<128; i++){
+	for (Int_t i=0; i<512; i++){
+		Int_t SectorNum = Sector[i];
 		Int_t RingNum = Ring[i];
+
 		Float_t DeadLayerThickness;
-    	Float_t Q5_Phi = 45 + (Det[i]*90.);
+    	Float_t Q5_Phi = 11.25 + (SectorNum*22.5) + (Det[i]*90.);
     	targ_thick(QQQ5RingAngle[RingNum]*M_PI/180., Q5_Phi*M_PI/180., 0.0001, 0.0001, 0*M_PI/180., &DeadLayerThickness);//Dead layer thickness = 0.0001mm and Depth = thickness
     	//std::cout << DeadLayerThickness << std::endl;
 
